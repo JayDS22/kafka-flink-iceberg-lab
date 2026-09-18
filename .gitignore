@@ -1,0 +1,14 @@
+target/
+*.class
+*.jar
+.idea/
+*.iml
+.vscode/
+.DS_Store
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+/tmp/
+flink-checkpoints/
+savepoints/
