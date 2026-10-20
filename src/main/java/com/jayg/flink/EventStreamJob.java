@@ -56,6 +56,8 @@ public final class EventStreamJob {
         final String checkpointDir = env("CHECKPOINT_DIR", "file:///tmp/flink-checkpoints");
         final String restCatalog   = env("ICEBERG_REST_URI", "http://localhost:8181");
         final String warehouse     = env("ICEBERG_WAREHOUSE", "s3://warehouse/");
+        final String deltaPath     = env("DELTA_TABLE_PATH", "s3a://warehouse/delta/clicks_agg");
+        final boolean deltaEnabled = Boolean.parseBoolean(env("DELTA_SINK_ENABLED", "true"));
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(4);
@@ -98,16 +100,29 @@ public final class EventStreamJob {
             .allowedLateness(Time.minutes(5))
             .aggregate(new CountAndSum(), new AggToRow());
 
+        // Dual-sink: Delta Lake runs alongside Iceberg off the same aggregated stream.
+        // Toggle via DELTA_SINK_ENABLED (default true). See DeltaSinkConfig for schema +
+        // Hadoop S3A config. Delta is append-only; Iceberg is upsert on (window_start, user_id).
+        // Comparison semantics are deliberate: bronze (Delta) vs silver (Iceberg).
+        if (deltaEnabled) {
+            DeltaSinkConfig.attach(aggregated, deltaPath,
+                env("S3_ENDPOINT", "http://localhost:9000"),
+                env("S3_ACCESS_KEY", "minioadmin"),
+                env("S3_SECRET_KEY", "minioadmin"));
+        }
+
         // Iceberg sink: upsert semantics on (window_start, user_id).
-        CatalogLoader catalog = CatalogLoader.rest("rest", new HashMap<>() {{
-            put("uri", restCatalog);
-            put("warehouse", warehouse);
-            put("io-impl", "org.apache.iceberg.aws.s3.S3FileIO");
-            put("s3.endpoint", env("S3_ENDPOINT", "http://localhost:9000"));
-            put("s3.access-key-id", env("S3_ACCESS_KEY", "minioadmin"));
-            put("s3.secret-access-key", env("S3_SECRET_KEY", "minioadmin"));
-            put("s3.path-style-access", "true");
-        }});
+        // Iceberg 1.4.3 CatalogLoader.rest signature: (name, hadoopConf, properties).
+        Map<String, String> catalogProps = new HashMap<>();
+        catalogProps.put("uri", restCatalog);
+        catalogProps.put("warehouse", warehouse);
+        catalogProps.put("io-impl", "org.apache.iceberg.aws.s3.S3FileIO");
+        catalogProps.put("s3.endpoint", env("S3_ENDPOINT", "http://localhost:9000"));
+        catalogProps.put("s3.access-key-id", env("S3_ACCESS_KEY", "minioadmin"));
+        catalogProps.put("s3.secret-access-key", env("S3_SECRET_KEY", "minioadmin"));
+        catalogProps.put("s3.path-style-access", "true");
+        org.apache.hadoop.conf.Configuration icebergHadoopConf = new org.apache.hadoop.conf.Configuration();
+        CatalogLoader catalog = CatalogLoader.rest("rest", icebergHadoopConf, catalogProps);
         TableLoader table = TableLoader.fromCatalog(catalog, TableIdentifier.of("default", "clicks_agg"));
 
         FlinkSink.forRowData(aggregated)
