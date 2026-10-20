@@ -10,8 +10,13 @@
   <properties>
     <maven.compiler.source>17</maven.compiler.source>
     <maven.compiler.target>17</maven.compiler.target>
-    <flink.version>1.20.0</flink.version>
-    <iceberg.version>1.7.0</iceberg.version>
+    <!-- Branch delta-sink-lab: pinned to Flink 1.16.2 so delta-flink 3.0.0 is a supported pairing.
+         Connector maintainers never validated Flink 1.17+; delta-flink is in maintenance mode after
+         the Delta Kernel migration. main branch stays on Flink 1.20 Iceberg-only. -->
+    <flink.version>1.16.2</flink.version>
+    <iceberg.version>1.4.3</iceberg.version>
+    <delta.version>3.0.0</delta.version>
+    <hadoop.version>3.3.4</hadoop.version>
     <kafka.version>3.7.0</kafka.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
@@ -30,7 +35,7 @@
     <dependency>
       <groupId>org.apache.flink</groupId>
       <artifactId>flink-connector-kafka</artifactId>
-      <version>3.3.0-1.20</version>
+      <version>${flink.version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.flink</groupId>
@@ -38,8 +43,28 @@
       <version>${flink.version}</version>
     </dependency>
     <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-table-runtime</artifactId>
+      <version>${flink.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-table-common</artifactId>
+      <version>${flink.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-connector-files</artifactId>
+      <version>${flink.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-parquet</artifactId>
+      <version>${flink.version}</version>
+    </dependency>
+    <dependency>
       <groupId>org.apache.iceberg</groupId>
-      <artifactId>iceberg-flink-runtime-1.20</artifactId>
+      <artifactId>iceberg-flink-runtime-1.16</artifactId>
       <version>${iceberg.version}</version>
     </dependency>
     <dependency>
@@ -47,6 +72,33 @@
       <artifactId>iceberg-aws-bundle</artifactId>
       <version>${iceberg.version}</version>
     </dependency>
+
+    <!-- Delta Lake Flink connector + Hadoop S3A for _delta_log writes -->
+    <dependency>
+      <groupId>io.delta</groupId>
+      <artifactId>delta-flink</artifactId>
+      <version>${delta.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.delta</groupId>
+      <artifactId>delta-standalone_2.12</artifactId>
+      <version>${delta.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-common</artifactId>
+      <version>${hadoop.version}</version>
+      <exclusions>
+        <exclusion><groupId>org.slf4j</groupId><artifactId>slf4j-reload4j</artifactId></exclusion>
+        <exclusion><groupId>ch.qos.reload4j</groupId><artifactId>reload4j</artifactId></exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-aws</artifactId>
+      <version>${hadoop.version}</version>
+    </dependency>
+
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
